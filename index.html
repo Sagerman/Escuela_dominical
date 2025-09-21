@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Bosque MMM - Sistema de Asistencia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+      import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+      import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
+
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyDJwmoaHUzUsRHRVaYzuHU4W2xgd5nio_E",
+        authDomain: "el-bosque-mmm.firebaseapp.com",
+        projectId: "el-bosque-mmm",
+        storageBucket: "el-bosque-mmm.firebasestorage.app",
+        messagingSenderId: "912946755413",
+        appId: "1:912946755413:web:21a26066e63a17e370e1dc",
+        measurementId: "G-EQCFVK6Z4H"
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+      const analytics = getAnalytics(app);
+
+      // Make Firebase available globally
+      window.db = db;
+      window.auth = auth;
+      window.firebaseUtils = {
+        collection,
+        addDoc,
+        getDocs,
+        doc,
+        updateDoc,
+        deleteDoc,
+        onSnapshot,
+        query,
+        orderBy,
+        where,
+        signInWithEmailAndPassword,
+        signOut,
+        onAuthStateChanged
+      };
+
+      console.log('🔥 Firebase inicializado correctamente');
+    </script>
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <div class="login-container">
+                <div class="church-header">
+                    <h1>El Bosque MMM</h1>
+                    <p>Movimiento Misionero Mundial</p>
+                    <div class="cross-icon">
+                        <img src="https://c.animaapp.com/mfsrzfsvWheJLN/img/image.png" alt="Logo El Bosque MMM" />
+                    </div>
+                </div>
+                
+                <div class="login-form">
+                    <h2>Iniciar Sesión</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">Usuario:</label>
+                            <input type="text" id="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Contraseña:</label>
+                            <input type="password" id="password" required>
+                        </div>
+                        <button type="submit">Ingresar</button>
+                        <div id="loginError" class="error-message"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div id="dashboardScreen" class="screen">
+            <header class="dashboard-header">
+                <div class="header-content">
+                    <h1>El Bosque MMM - Escuela Dominical</h1>
+                    <div class="user-info">
+                        <span id="currentUser"></span>
+                        <button id="logoutBtn">Cerrar Sesión</button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="dashboard-main">
+                <div class="date-info">
+                    <h2 id="currentDate"></h2>
+                    <div id="sundayStatus" class="status-message"></div>
+                </div>
+
+                <div class="groups-container">
+                    <div id="childrenGroup" class="group-card">
+                        <h3>Niños</h3>
+                        <button class="group-btn" onclick="openGroup('children')">Gestionar Grupo</button>
+                    </div>
+                    
+                    <div id="teenGroup" class="group-card">
+                        <h3>Adolescentes</h3>
+                        <button class="group-btn" onclick="openGroup('teens')">Gestionar Grupo</button>
+                    </div>
+                    
+                    <div class="group-card reports-card">
+                        <h3>Reportes</h3>
+                        <button class="group-btn reports-btn" onclick="openReports()">Ver Historial</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Group Management Screen -->
+        <div id="groupScreen" class="screen">
+            <header class="group-header">
+                <button id="backBtn" onclick="goBack()">← Volver</button>
+                <h2 id="groupTitle"></h2>
+                <div class="group-date" id="groupDate"></div>
+            </header>
+
+            <div class="group-content">
+                <div class="group-actions">
+                    <button id="addStudentBtn" onclick="showAddStudent()">Agregar Estudiante</button>
+                    <button id="takeAttendanceBtn" onclick="takeAttendance()" disabled>Pasar Lista</button>
+                </div>
+
+                <div class="students-list">
+                    <h3>Lista de Estudiantes</h3>
+                    <div class="export-actions">
+                        <button class="export-btn" onclick="exportStudentsToExcel()">Exportar a Excel</button>
+                        <button class="print-btn" onclick="printStudentsList()">Lista de Asistencia</button>
+                        <button class="print-btn" onclick="printStudentsInfo()" style="background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%);">Info Completa</button>
+                    </div>
+                    <div id="studentsList"></div>
+                </div>
+
+                <div id="attendanceSection" class="attendance-section" style="display: none;">
+                    <h3>Asistencia - <span id="attendanceDate"></span></h3>
+                    <div id="attendanceList"></div>
+                    <button id="saveAttendanceBtn" onclick="saveAttendance()">Guardar Asistencia</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Screen -->
+        <div id="reportsScreen" class="screen">
+            <header class="group-header">
+                <button id="backToMainBtn" onclick="goBackToMain()">← Volver al Inicio</button>
+                <h2>📊 Historial de Asistencias</h2>
+                <div class="current-year" id="currentYear"></div>
+            </header>
+
+            <div class="reports-content">
+                <div class="reports-filters">
+                    <div class="filter-group">
+                        <label for="groupFilter">Grupo:</label>
+                        <select id="groupFilter" onchange="filterReports()">
+                            <option value="all">Todos los grupos</option>
+                            <option value="children">Niños</option>
+                            <option value="teens">Adolescentes</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="monthFilter">Mes:</label>
+                        <select id="monthFilter" onchange="filterReports()">
+                            <option value="all">Todos los meses</option>
+                            <option value="0">Enero</option>
+                            <option value="1">Febrero</option>
+                            <option value="2">Marzo</option>
+                            <option value="3">Abril</option>
+                            <option value="4">Mayo</option>
+                            <option value="5">Junio</option>
+                            <option value="6">Julio</option>
+                            <option value="7">Agosto</option>
+                            <option value="8">Septiembre</option>
+                            <option value="9">Octubre</option>
+                            <option value="10">Noviembre</option>
+                            <option value="11">Diciembre</option>
+                        </select>
+                    </div>
+
+                    <button onclick="generateYearReport()" class="report-btn">📈 Reporte Anual</button>
+                </div>
+
+                <div class="reports-summary">
+                    <div class="summary-card">
+                        <h4>Total Domingos</h4>
+                        <span id="totalSundays">0</span>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Promedio Niños</h4>
+                        <span id="avgChildren">0</span>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Promedio Adolescentes</h4>
+                        <span id="avgTeens">0</span>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Mejor Asistencia</h4>
+                        <span id="bestAttendance">-</span>
+                    </div>
+                </div>
+
+                <div class="reports-list">
+                    <h3>Historial de Asistencias</h3>
+                    <div class="export-actions">
+                        <button class="export-btn" onclick="exportAttendanceToExcel()">Exportar a Excel</button>
+                        <button class="print-btn" onclick="printAttendanceReport()">Imprimir Reporte</button>
+                    </div>
+                    <div id="attendanceHistory"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Year Report Modal -->
+        <div id="yearReportModal" class="modal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>Reporte Anual <span id="reportYear"></span></h3>
+                    <button onclick="closeYearReport()" class="close-btn">✕</button>
+                </div>
+                <div class="year-report-content">
+                    <div class="report-charts">
+                        <div class="chart-section">
+                            <h4>Asistencia por Mes</h4>
+                            <div id="monthlyChart" class="chart"></div>
+                        </div>
+                        <div class="chart-section">
+                            <h4>Comparación de Grupos</h4>
+                            <div id="groupChart" class="chart"></div>
+                        </div>
+                    </div>
+                    <div class="report-stats">
+                        <div class="stat-row">
+                            <span>Total de domingos registrados:</span>
+                            <strong id="yearTotalSundays">0</strong>
+                        </div>
+                        <div class="stat-row">
+                            <span>Promedio general de asistencia:</span>
+                            <strong id="yearAvgAttendance">0</strong>
+                        </div>
+                        <div class="stat-row">
+                            <span>Mes con mejor asistencia:</span>
+                            <strong id="bestMonth">-</strong>
+                        </div>
+                        <div class="stat-row">
+                            <span>Domingo con más asistencia:</span>
+                            <strong id="bestSunday">-</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Student Modal -->
+        <div id="addStudentModal" class="modal">
+            <div class="modal-content">
+                <h3 id="studentModalTitle">Agregar Nuevo Estudiante</h3>
+                <form id="addStudentForm">
+                    <div class="form-group">
+                        <label for="studentName">Nombre completo:</label>
+                        <input type="text" id="studentName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="studentAge">Edad:</label>
+                        <input type="number" id="studentAge" min="3" max="18" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="studentPhone">Teléfono (opcional):</label>
+                        <input type="tel" id="studentPhone" placeholder="Ej: 300 123 4567">
+                    </div>
+                    <div class="form-group">
+                        <label for="studentAddress">Dirección (opcional):</label>
+                        <input type="text" id="studentAddress" placeholder="Ej: Calle 123 #45-67">
+                    </div>
+                    <div class="form-group">
+                        <label for="studentParents">Nombre de los padres (opcional):</label>
+                        <input type="text" id="studentParents" placeholder="Ej: Juan Pérez y María García">
+                    </div>
+                    <div class="form-group">
+                        <label for="studentNotes">Notas adicionales (opcional):</label>
+                        <textarea id="studentNotes" rows="3" placeholder="Información adicional, alergias, etc."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="closeAddStudent()">Cancelar</button>
+                        <button type="submit" id="studentSubmitBtn">Agregar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Student Details Modal -->
+        <div id="studentDetailsModal" class="modal">
+            <div class="modal-content">
+                <h3>Información del Estudiante</h3>
+                <div id="studentDetailsContent"></div>
+                <div class="form-actions">
+                    <button type="button" onclick="closeStudentDetails()">Cerrar</button>
+                    <button type="button" onclick="editStudent()" class="edit-btn">Editar</button>
+                    <button type="button" onclick="deleteStudent()" class="delete-btn">Eliminar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div id="deleteConfirmModal" class="modal">
+            <div class="modal-content small-modal">
+                <h3>Confirmar Eliminación</h3>
+                <p>¿Estás seguro de que deseas eliminar a <strong id="deleteStudentName"></strong>?</p>
+                <p class="warning-text">Esta acción no se puede deshacer.</p>
+                <div class="form-actions">
+                    <button type="button" onclick="closeDeleteConfirm()">Cancelar</button>
+                    <button type="button" onclick="confirmDelete()" class="delete-btn">Eliminar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
