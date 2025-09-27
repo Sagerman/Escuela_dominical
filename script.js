@@ -1,20 +1,8 @@
-// Usuarios con contraseñas ofuscadas (más seguro para GitHub)
+// Usuarios predefinidos
 const users = {
-    'pastor': { 
-        password: atob('cGFzdG9yMTIz'), // pastor123 codificado
-        role: 'pastor', 
-        name: 'Pastor' 
-    },
-    'maestro_ninos': { 
-        password: atob('bmlub3MxMjM='), // ninos123 codificado
-        role: 'children', 
-        name: 'Maestro de Niños' 
-    },
-    'maestro_adolescentes': { 
-        password: atob('YWRvbGVzY2VudGVzMTIz'), // adolescentes123 codificado
-        role: 'teens', 
-        name: 'Maestro de Adolescentes' 
-    }
+    'pastor': { password: 'pastor123', role: 'pastor', name: 'Pastor' },
+    'maestro_ninos': { password: 'ninos123', role: 'children', name: 'Maestro de Niños' },
+    'maestro_adolescentes': { password: 'adolescentes123', role: 'teens', name: 'Maestro de Adolescentes' }
 };
 
 // Estado de la aplicación
@@ -52,55 +40,23 @@ function initializeApp() {
     document.getElementById('addStudentForm').addEventListener('submit', handleAddStudent);
     
     // Verificar si Firebase está disponible
-    if (window.db && window.firebaseUtils && window.auth) {
+    if (window.db && window.firebaseUtils) {
         firebaseReady = true;
         console.log('✅ Firebase conectado - Datos en la nube');
         initializeFirebaseData();
-        setupAuthListener();
     } else {
         console.log('⚠️ Firebase no disponible - Usando localStorage');
         initializeLocalData();
-        
-        // Verificar si hay una sesión activa local
-        const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-            currentUser = JSON.parse(savedUser);
-            showDashboard();
-        } else {
-            showLogin();
-        }
     }
-}
-
-function setupAuthListener() {
-    const { onAuthStateChanged } = window.firebaseUtils;
     
-    onAuthStateChanged(window.auth, (user) => {
-        if (user) {
-            // Usuario autenticado
-            const userRole = userRoles[user.email];
-            if (userRole) {
-                currentUser = {
-                    email: user.email,
-                    role: userRole.role,
-                    name: userRole.name,
-                    uid: user.uid
-                };
-                
-                localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                showDashboard();
-                console.log('✅ Usuario autenticado:', currentUser.name);
-            } else {
-                console.error('❌ Usuario no autorizado:', user.email);
-                logout();
-            }
-        } else {
-            // Usuario no autenticado
-            currentUser = null;
-            localStorage.removeItem('currentUser');
-            showLogin();
-        }
-    });
+    // Verificar si hay una sesión activa
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        showDashboard();
+    } else {
+        showLogin();
+    }
 }
 
 function initializeFirebaseData() {
@@ -116,7 +72,14 @@ function initializeLocalData() {
         children: JSON.parse(localStorage.getItem('children_students') || '[]'),
         teens: JSON.parse(localStorage.getItem('teens_students') || '[]')
     };
-    attendanceDatabase = JSON.parse(localStorage.getItem('attendance_database') || '{}');
+    
+    // Cargar asistencias desde localStorage
+    const localAttendance = localStorage.getItem('attendance_database');
+    if (localAttendance) {
+        attendanceDatabase = JSON.parse(localAttendance);
+        console.log('📊 Asistencias recuperadas desde localStorage:', attendanceDatabase);
+    }
+    
     initializeAttendanceDatabase();
 }
 
@@ -173,7 +136,16 @@ function setupStudentsListeners() {
 }
 
 async function loadAttendanceFromFirebase() {
-    if (!firebaseReady) return;
+    // Primero cargar desde localStorage
+    const localData = localStorage.getItem('attendance_database');
+    if (localData) {
+        attendanceDatabase = JSON.parse(localData);
+        console.log('📊 Datos de asistencia cargados desde localStorage');
+    }
+    
+    if (!firebaseReady) {
+        return;
+    }
 
     try {
         const { collection, getDocs } = window.firebaseUtils;
@@ -182,24 +154,46 @@ async function loadAttendanceFromFirebase() {
         const attendanceRef = collection(window.db, 'attendance', currentYear.toString(), 'records');
         const snapshot = await getDocs(attendanceRef);
         
-        attendanceDatabase[currentYear] = {
-            children: {},
-            teens: {},
-            created: new Date().toISOString()
-        };
+        if (!attendanceDatabase[currentYear]) {
+            attendanceDatabase[currentYear] = {
+                children: {},
+                teens: {},
+                created: new Date().toISOString()
+            };
+        }
+        
+        let firebaseDataFound = false;
         
         snapshot.forEach((doc) => {
             const data = doc.data();
-            const [group, date] = doc.id.split('_');
+            const docId = doc.id;
+            firebaseDataFound = true;
             
-            if (group === 'children' || group === 'teens') {
-                attendanceDatabase[currentYear][group][date] = data;
+            // Intentar extraer grupo y fecha del ID del documento
+            if (docId.includes('_')) {
+                const [group, date] = docId.split('_');
+                if (group === 'children' || group === 'teens') {
+                    attendanceDatabase[currentYear][group][date] = data;
+                }
+            } else {
+                // Si no tiene el formato esperado, usar los datos del documento
+                if (data.group && data.date) {
+                    attendanceDatabase[currentYear][data.group][data.date] = data;
+                }
             }
         });
         
-        console.log('📊 Datos de asistencia cargados desde Firebase');
+        // Guardar en localStorage como respaldo
+        localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
+        
+        if (firebaseDataFound) {
+            console.log('📊 Datos de asistencia sincronizados desde Firebase:', attendanceDatabase[currentYear]);
+        } else {
+            console.log('📊 No hay datos nuevos en Firebase, usando localStorage');
+        }
     } catch (error) {
-        console.error('Error cargando asistencias:', error);
+        console.error('❌ Error cargando asistencias desde Firebase:', error);
+        console.log('📊 Usando datos de localStorage como respaldo');
     }
 }
 
@@ -275,14 +269,13 @@ function showDashboard() {
     updateGroupVisibility();
 }
 
-async function handleLogin(e) {
+function handleLogin(e) {
     e.preventDefault();
     
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     const errorDiv = document.getElementById('loginError');
     
-    // Sistema simple de login
     if (users[username] && users[username].password === password) {
         currentUser = {
             username: username,
@@ -297,7 +290,7 @@ async function handleLogin(e) {
         document.getElementById('loginForm').reset();
         errorDiv.textContent = '';
     } else {
-        errorDiv.textContent = 'Usuario o contraseña incorrectos';
+        errorDiv.textContent = 'Usuario o contraseña incorrectos  ';
     }
 }
 
@@ -385,7 +378,7 @@ function showGroupScreen() {
     });
     document.getElementById('groupDate').textContent = dateString;
     
-    // Habilitar/deshabilitar botón de asistencia
+    // Habilitar/deshabilitar botón de asistencia solo los domingos
     const isSunday = colombiaTime.getDay() === 0;
     const takeAttendanceBtn = document.getElementById('takeAttendanceBtn');
     takeAttendanceBtn.disabled = !isSunday;
@@ -422,9 +415,9 @@ function displayStudents() {
                 <div class="student-age">${student.age} años</div>
             </div>
             <div class="student-actions">
-                <button class="action-btn view-btn" onclick="viewStudentDetails(${student.id})">Ver</button>
-                <button class="action-btn edit-student-btn" onclick="editStudentForm(${student.id})">Editar</button>
-                <button class="action-btn delete-student-btn" onclick="showDeleteConfirm(${student.id})">Eliminar</button>
+                <button class="action-btn view-btn" onclick="viewStudentDetails('${student.id}')">Ver</button>
+                <button class="action-btn edit-student-btn" onclick="editStudentForm('${student.id}')">Editar</button>
+                <button class="action-btn delete-student-btn" onclick="showDeleteConfirm('${student.id}')">Eliminar</button>
             </div>
         </div>
     `).join('');
@@ -559,8 +552,15 @@ async function handleAddStudent(e) {
 
 // Funciones para ver detalles del estudiante
 function viewStudentDetails(studentId) {
-    const student = students[currentGroup].find(s => s.id === studentId);
-    if (!student) return;
+    console.log('Buscando estudiante con ID:', studentId);
+    console.log('Estudiantes disponibles:', students[currentGroup]);
+    
+    const student = students[currentGroup].find(s => s.id == studentId || s.id === studentId);
+    if (!student) {
+        console.error('Estudiante no encontrado:', studentId);
+        alert('Error: No se pudo encontrar la información del estudiante');
+        return;
+    }
     
     const detailsContent = document.getElementById('studentDetailsContent');
     
@@ -620,8 +620,13 @@ function editStudent() {
 }
 
 function editStudentForm(studentId) {
-    const student = students[currentGroup].find(s => s.id === studentId);
-    if (!student) return;
+    console.log('Editando estudiante con ID:', studentId);
+    const student = students[currentGroup].find(s => s.id == studentId || s.id === studentId);
+    if (!student) {
+        console.error('Estudiante no encontrado para editar:', studentId);
+        alert('Error: No se pudo encontrar el estudiante para editar');
+        return;
+    }
     
     currentEditingStudent = student;
     
@@ -642,8 +647,13 @@ function editStudentForm(studentId) {
 
 // Funciones para eliminar estudiante
 function showDeleteConfirm(studentId) {
-    const student = students[currentGroup].find(s => s.id === studentId);
-    if (!student) return;
+    console.log('Eliminando estudiante con ID:', studentId);
+    const student = students[currentGroup].find(s => s.id == studentId || s.id === studentId);
+    if (!student) {
+        console.error('Estudiante no encontrado para eliminar:', studentId);
+        alert('Error: No se pudo encontrar el estudiante para eliminar');
+        return;
+    }
     
     studentToDelete = student;
     document.getElementById('deleteStudentName').textContent = student.name;
@@ -698,6 +708,7 @@ function takeAttendance() {
     const now = new Date();
     const colombiaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
     
+    // Verificar que sea domingo
     if (colombiaTime.getDay() !== 0) {
         alert('La asistencia solo puede tomarse los domingos');
         return;
@@ -724,6 +735,8 @@ function takeAttendance() {
         return;
     }
     
+    console.log('📋 Generando lista de asistencia para:', groupStudents.length, 'estudiantes');
+    
     attendanceList.innerHTML = groupStudents.map(student => `
         <div class="attendance-item">
             <div class="student-info">
@@ -748,18 +761,22 @@ async function saveAttendance() {
     const colombiaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
     const dateKey = colombiaTime.toISOString().split('T')[0];
     
+    console.log('💾 Guardando asistencia para:', currentGroup, 'en fecha:', dateKey);
+    
     checkboxes.forEach(checkbox => {
         const studentId = checkbox.dataset.studentId;
-        const student = students[currentGroup].find(s => s.id === studentId);
+        const student = students[currentGroup].find(s => s.id == studentId || s.id === studentId);
         
-        attendance.push({
-            studentId: studentId,
-            studentName: student.name,
-            studentAge: student.age,
-            present: checkbox.checked,
-            date: dateKey,
-            timestamp: colombiaTime.toISOString()
-        });
+        if (student) {
+            attendance.push({
+                studentId: studentId,
+                studentName: student.name,
+                studentAge: student.age,
+                present: checkbox.checked,
+                date: dateKey,
+                timestamp: colombiaTime.toISOString()
+            });
+        }
     });
     
     const attendanceRecord = {
@@ -775,11 +792,15 @@ async function saveAttendance() {
         savedAt: colombiaTime.toISOString()
     };
     
+    console.log('📊 Registro de asistencia:', attendanceRecord);
+    
     // Guardar en la base de datos principal
     if (!attendanceDatabase[currentYear]) {
         attendanceDatabase[currentYear] = { children: {}, teens: {} };
     }
     attendanceDatabase[currentYear][currentGroup][dateKey] = attendanceRecord;
+    
+    let savedSuccessfully = false;
     
     if (firebaseReady) {
         try {
@@ -789,27 +810,41 @@ async function saveAttendance() {
             await setDoc(docRef, attendanceRecord);
             
             console.log('✅ Asistencia guardada en Firebase');
+            savedSuccessfully = true;
         } catch (error) {
-            console.error('Error guardando asistencia:', error);
-            // Fallback a localStorage
-            localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
+            console.error('❌ Error guardando asistencia en Firebase:', error);
         }
-    } else {
-        // Fallback a localStorage
-        saveAttendanceDatabase();
-        const attendanceKey = `attendance_${currentGroup}_${dateKey}`;
-        localStorage.setItem(attendanceKey, JSON.stringify(attendance));
     }
     
-    // Mostrar resumen
-    const presentCount = attendance.filter(a => a.present).length;
-    const totalCount = attendance.length;
-    const percentage = Math.round((presentCount / totalCount) * 100);
+    // Siempre guardar en localStorage como respaldo
+    try {
+        localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
+        const attendanceKey = `attendance_${currentGroup}_${dateKey}`;
+        localStorage.setItem(attendanceKey, JSON.stringify(attendance));
+        console.log('✅ Asistencia guardada en localStorage');
+        savedSuccessfully = true;
+    } catch (error) {
+        console.error('❌ Error guardando en localStorage:', error);
+    }
     
-    alert(`Asistencia guardada exitosamente!\n\nPresentes: ${presentCount}\nTotal: ${totalCount}\nPorcentaje: ${percentage}%`);
-    
-    // Ocultar sección de asistencia
-    document.getElementById('attendanceSection').style.display = 'none';
+    if (savedSuccessfully) {
+        // Mostrar resumen
+        const presentCount = attendance.filter(a => a.present).length;
+        const totalCount = attendance.length;
+        const percentage = Math.round((presentCount / totalCount) * 100);
+        
+        alert(`✅ Asistencia guardada exitosamente!\n\nPresentes: ${presentCount}\nTotal: ${totalCount}\nPorcentaje: ${percentage}%\n\nFecha: ${new Date(dateKey).toLocaleDateString('es-CO')}`);
+        
+        // Ocultar sección de asistencia
+        document.getElementById('attendanceSection').style.display = 'none';
+        
+        // Recargar reportes si estamos en esa pantalla
+        if (document.getElementById('reportsScreen').classList.contains('active')) {
+            loadReports();
+        }
+    } else {
+        alert('❌ Error al guardar la asistencia. Por favor intenta de nuevo.');
+    }
 }
 
 // Funciones para el sistema de reportes

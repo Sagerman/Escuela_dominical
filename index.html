@@ -15,7 +15,6 @@
       // Import the functions you need from the SDKs you need
       import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
       import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
-      import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
 
       // Your web app's Firebase configuration
@@ -32,12 +31,10 @@
       // Initialize Firebase
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
-      const auth = getAuth(app);
       const analytics = getAnalytics(app);
 
       // Make Firebase available globally
       window.db = db;
-      window.auth = auth;
       window.firebaseUtils = {
         collection,
         addDoc,
@@ -48,10 +45,7 @@
         onSnapshot,
         query,
         orderBy,
-        where,
-        signInWithEmailAndPassword,
-        signOut,
-        onAuthStateChanged
+        where
       };
 
       console.log('🔥 Firebase inicializado correctamente');

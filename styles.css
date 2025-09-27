@@ -410,9 +410,16 @@ button:disabled {
 .group-btn {
   background: linear-gradient(135deg, #daa520 0%, #b8860b 100%);
   margin-top: 30px;
-  padding: 15px 40px;
+  padding: 15px 30px;
   font-size: 0.9rem;
   letter-spacing: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .reports-btn {
@@ -567,21 +574,25 @@ button:disabled {
 
 /* Export and Print Buttons */
 .export-actions {
-  display: flex;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
   margin-bottom: 30px;
-  flex-wrap: wrap;
 }
 
 .export-btn, .print-btn {
-  padding: 12px 25px;
-  font-size: 0.9rem;
+  padding: 15px 20px;
+  font-size: 0.85rem;
   letter-spacing: 1px;
   font-family: 'Inter', sans-serif;
   border: none;
   cursor: pointer;
   transition: all 0.3s ease;
   text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .export-btn {
@@ -811,19 +822,22 @@ button:disabled {
   backdrop-filter: blur(10px);
   z-index: 1000;
   animation: fadeIn 0.4s ease-out;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .modal.active {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  min-height: 100vh;
 }
 
 .modal-content {
   background: rgba(248, 249, 250, 0.98);
   backdrop-filter: blur(20px);
-  padding: 60px 50px;
-  width: 90%;
+  padding: 40px 30px;
+  width: 100%;
   max-width: 600px;
   box-shadow: 
     0 25px 50px rgba(0,0,0,0.3),
@@ -831,6 +845,9 @@ button:disabled {
   border: 1px solid rgba(218, 165, 32, 0.2);
   animation: slideIn 0.5s ease-out;
   position: relative;
+  margin: 20px auto;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 .modal-content::before {
@@ -905,19 +922,24 @@ button:disabled {
 
 .student-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .action-btn {
-  padding: 8px 12px;
+  padding: 10px 15px;
   border: none;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   transition: all 0.3s ease;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Inter', sans-serif;
+  min-width: 70px;
+  text-align: center;
+  flex: 1;
+  white-space: nowrap;
 }
 
 .view-btn {
@@ -1261,24 +1283,72 @@ button:disabled {
   }
   
   .dashboard-main, .group-content, .reports-content {
-    padding: 40px 30px;
+    padding: 40px 20px;
   }
   
-  .group-actions, .export-actions {
+  .groups-container {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  
+  .group-card {
+    padding: 40px 20px;
+  }
+  
+  .group-btn {
+    padding: 18px 20px;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    line-height: 1.2;
+    min-height: 55px;
+  }
+  
+  .group-actions {
     flex-direction: column;
+    gap: 15px;
+  }
+  
+  .export-actions {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .export-btn, .print-btn {
+    padding: 18px 15px;
+    font-size: 0.8rem;
   }
   
   .student-item,
-  .attendance-item,
+  .attendance-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+    padding: 20px 15px;
+  }
+  
+  .student-actions {
+    justify-content: stretch;
+    gap: 8px;
+  }
+  
+  .action-btn {
+    flex: 1;
+    padding: 12px 8px;
+    font-size: 0.7rem;
+    min-width: 60px;
+  }
+  
   .attendance-record {
     flex-direction: column;
     align-items: flex-start;
-    gap: 20px;
+    gap: 15px;
+    padding: 20px 15px;
   }
   
   .reports-filters {
     flex-direction: column;
     align-items: stretch;
+    padding: 30px 20px;
   }
   
   .filter-group {
@@ -1289,17 +1359,28 @@ button:disabled {
   .record-stats {
     width: 100%;
     justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .stat-item {
+    min-width: 80px;
+    padding: 10px 15px;
   }
   
   .large-modal {
     width: 98%;
     margin: 10px;
-    padding: 40px 30px;
+    padding: 40px 20px;
   }
   
   .reports-summary {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+  }
+  
+  .students-list, .reports-list, .attendance-section {
+    padding: 30px 20px;
   }
 }
 
@@ -1318,20 +1399,138 @@ button:disabled {
   }
   
   .login-form {
-    padding: 40px 30px;
+    padding: 40px 25px;
+  }
+  
+  .modal {
+    padding: 5px;
   }
   
   .modal-content {
-    padding: 40px 30px;
+    padding: 25px 15px;
+    margin: 5px auto;
+    width: calc(100% - 10px);
+    max-height: calc(100vh - 10px);
+  }
+  
+  .modal-content h3 {
+    font-size: 1.4rem;
+    margin-bottom: 25px;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+    gap: 12px;
   }
   
   .date-info h2 {
-    font-size: 2.2rem;
+    font-size: 2rem;
   }
   
   .status-message {
-    font-size: 1rem;
-    padding: 15px 25px;
+    font-size: 0.9rem;
+    padding: 12px 20px;
+  }
+  
+  .dashboard-main, .group-content, .reports-content {
+    padding: 30px 15px;
+  }
+  
+  .groups-container {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+  
+  .group-card {
+    padding: 30px 15px;
+  }
+  
+  .group-card h3 {
+    font-size: 1.8rem;
+    margin-bottom: 25px;
+  }
+  
+  .group-btn {
+    padding: 20px 15px;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    min-height: 60px;
+    word-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  .export-actions {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .export-btn, .print-btn {
+    padding: 16px 12px;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+  }
+  
+  .student-item {
+    padding: 15px 10px;
+  }
+  
+  .student-actions {
+    gap: 6px;
+  }
+  
+  .action-btn {
+    padding: 10px 6px;
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
+    min-width: 50px;
+  }
+  
+  .students-list, .reports-list, .attendance-section {
+    padding: 25px 15px;
+  }
+  
+  .students-list h3, .reports-list h3, .attendance-section h3 {
+    font-size: 1.5rem;
+    margin-bottom: 25px;
+  }
+  
+  .group-header {
+    padding: 20px 15px;
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  #backBtn, #backToMainBtn {
+    padding: 10px 20px;
+    font-size: 0.75rem;
+  }
+  
+  .group-date, .current-year {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+  }
+  
+  .record-stats {
+    gap: 8px;
+  }
+  
+  .stat-item {
+    min-width: 70px;
+    padding: 8px 10px;
+  }
+  
+  .stat-label {
+    font-size: 0.6rem;
+  }
+  
+  .stat-value {
+    font-size: 1.2rem;
   }
 }
 
