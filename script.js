@@ -62,6 +62,10 @@ function initializeApp() {
 async function initializeFirebaseData() {
     // Inicializar listeners para estudiantes
     setupStudentsListeners();
+    
+    // MIGRAR DATOS DE LOCALSTORAGE A FIREBASE
+    await migrateLocalDataToFirebase();
+    
     // Cargar datos de asistencia
     await loadAttendanceFromFirebase();
     
@@ -88,6 +92,74 @@ function initializeLocalData() {
     }
     
     initializeAttendanceDatabase();
+}
+
+// NUEVA FUNCIÓN: Migrar datos de localStorage a Firebase
+async function migrateLocalDataToFirebase() {
+    if (!firebaseReady) {
+        console.log('⚠️ Firebase no disponible, no se puede migrar');
+        return;
+    }
+
+    console.log('🔄 Iniciando migración de datos locales a Firebase...');
+
+    try {
+        const { collection, doc, setDoc, getDocs } = window.firebaseUtils;
+        let migratedCount = 0;
+
+        // Migrar asistencias desde localStorage
+        const localAttendance = localStorage.getItem('attendance_database');
+        if (localAttendance) {
+            const localData = JSON.parse(localAttendance);
+            console.log('📦 Datos locales encontrados:', localData);
+
+            for (const [year, yearData] of Object.entries(localData)) {
+                if (yearData.children || yearData.teens) {
+                    // Migrar asistencias de niños
+                    if (yearData.children) {
+                        for (const [date, attendanceData] of Object.entries(yearData.children)) {
+                            const docId = `children_${date}`;
+                            const docRef = doc(window.db, 'attendance', year, 'records', docId);
+                            
+                            try {
+                                await setDoc(docRef, attendanceData, { merge: false });
+                                migratedCount++;
+                                console.log(`✅ Migrado: ${docId}`);
+                            } catch (error) {
+                                console.error(`❌ Error migrando ${docId}:`, error);
+                            }
+                        }
+                    }
+
+                    // Migrar asistencias de adolescentes
+                    if (yearData.teens) {
+                        for (const [date, attendanceData] of Object.entries(yearData.teens)) {
+                            const docId = `teens_${date}`;
+                            const docRef = doc(window.db, 'attendance', year, 'records', docId);
+                            
+                            try {
+                                await setDoc(docRef, attendanceData, { merge: false });
+                                migratedCount++;
+                                console.log(`✅ Migrado: ${docId}`);
+                            } catch (error) {
+                                console.error(`❌ Error migrando ${docId}:`, error);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (migratedCount > 0) {
+            console.log(`🎉 Migración completada: ${migratedCount} registros migrados a Firebase`);
+            alert(`✅ Se migraron ${migratedCount} registros de asistencia a la nube`);
+        } else {
+            console.log('ℹ️ No hay datos locales para migrar');
+        }
+
+    } catch (error) {
+        console.error('❌ Error durante la migración:', error);
+    }
 }
 
 function setupStudentsListeners() {
@@ -397,8 +469,8 @@ function showGroupScreen() {
     });
     document.getElementById('groupDate').textContent = dateString;
     
-    // Habilitar/deshabilitar botón de asistencia solo los domingos
-    const isSunday = colombiaTime.getDay() === 0;
+    // HABILITADO PARA PRUEBAS - Lista siempre disponible
+    const isSunday = true; // Cambiar a: colombiaTime.getDay() === 0 para producción
     const takeAttendanceBtn = document.getElementById('takeAttendanceBtn');
     takeAttendanceBtn.disabled = !isSunday;
     
@@ -727,11 +799,12 @@ function takeAttendance() {
     const now = new Date();
     const colombiaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
     
-    // Verificar que sea domingo
-    if (colombiaTime.getDay() !== 0) {
-        alert('La asistencia solo puede tomarse los domingos');
-        return;
-    }
+    // DESHABILITADO PARA PRUEBAS - Permitir cualquier día
+    // Descomentar la siguiente línea para producción:
+    // if (colombiaTime.getDay() !== 0) {
+    //     alert('La asistencia solo puede tomarse los domingos');
+    //     return;
+    // }
     
     const attendanceSection = document.getElementById('attendanceSection');
     const attendanceList = document.getElementById('attendanceList');
