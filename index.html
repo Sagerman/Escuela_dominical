@@ -45,10 +45,13 @@
         onSnapshot,
         query,
         orderBy,
-        where
+        where,
+        setDoc
       };
 
       console.log('🔥 Firebase inicializado correctamente');
+      console.log('📊 Firestore Database:', db);
+      console.log('🔧 Utils disponibles:', Object.keys(window.firebaseUtils));
     </script>
 </head>
 <body>

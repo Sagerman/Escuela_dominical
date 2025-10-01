@@ -59,11 +59,18 @@ function initializeApp() {
     }
 }
 
-function initializeFirebaseData() {
+async function initializeFirebaseData() {
     // Inicializar listeners para estudiantes
     setupStudentsListeners();
     // Cargar datos de asistencia
-    loadAttendanceFromFirebase();
+    await loadAttendanceFromFirebase();
+    
+    // Verificar estado de Firebase
+    console.log('🔍 Estado de Firebase:');
+    console.log('- Firebase Ready:', firebaseReady);
+    console.log('- Database:', window.db ? 'Conectada' : 'No conectada');
+    console.log('- Año actual:', currentYear);
+    console.log('- Asistencias cargadas:', attendanceDatabase[currentYear]);
 }
 
 function initializeLocalData() {
@@ -144,11 +151,14 @@ async function loadAttendanceFromFirebase() {
     }
     
     if (!firebaseReady) {
+        console.warn('⚠️ Firebase no disponible, usando solo localStorage');
         return;
     }
 
     try {
         const { collection, getDocs } = window.firebaseUtils;
+        
+        console.log('🔄 Cargando asistencias desde Firebase...');
         
         // Cargar asistencias del año actual
         const attendanceRef = collection(window.db, 'attendance', currentYear.toString(), 'records');
@@ -162,23 +172,30 @@ async function loadAttendanceFromFirebase() {
             };
         }
         
-        let firebaseDataFound = false;
+        let firebaseDataCount = 0;
         
         snapshot.forEach((doc) => {
             const data = doc.data();
             const docId = doc.id;
-            firebaseDataFound = true;
+            firebaseDataCount++;
+            
+            console.log(`📄 Documento encontrado: ${docId}`, data);
             
             // Intentar extraer grupo y fecha del ID del documento
             if (docId.includes('_')) {
-                const [group, date] = docId.split('_');
+                const parts = docId.split('_');
+                const group = parts[0];
+                const date = parts.slice(1).join('_'); // Por si la fecha tiene guiones
+                
                 if (group === 'children' || group === 'teens') {
                     attendanceDatabase[currentYear][group][date] = data;
+                    console.log(`✅ Asistencia cargada: ${group} - ${date}`);
                 }
             } else {
                 // Si no tiene el formato esperado, usar los datos del documento
                 if (data.group && data.date) {
                     attendanceDatabase[currentYear][data.group][data.date] = data;
+                    console.log(`✅ Asistencia cargada (formato alternativo): ${data.group} - ${data.date}`);
                 }
             }
         });
@@ -186,13 +203,15 @@ async function loadAttendanceFromFirebase() {
         // Guardar en localStorage como respaldo
         localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
         
-        if (firebaseDataFound) {
-            console.log('📊 Datos de asistencia sincronizados desde Firebase:', attendanceDatabase[currentYear]);
+        if (firebaseDataCount > 0) {
+            console.log(`📊 ${firebaseDataCount} registros de asistencia sincronizados desde Firebase`);
+            console.log('Datos completos:', attendanceDatabase[currentYear]);
         } else {
-            console.log('📊 No hay datos nuevos en Firebase, usando localStorage');
+            console.log('📊 No hay datos de asistencia en Firebase para este año');
         }
     } catch (error) {
         console.error('❌ Error cargando asistencias desde Firebase:', error);
+        console.error('Detalles del error:', error.message);
         console.log('📊 Usando datos de localStorage como respaldo');
     }
 }
@@ -210,43 +229,43 @@ function initializeAttendanceDatabase() {
 }
 
 async function saveAttendanceDatabase() {
-    if (firebaseReady) {
-        // Guardar en Firebase
-        try {
-            const { collection, doc, updateDoc, addDoc } = window.firebaseUtils;
-            
-            // Guardar cada registro de asistencia
-            const yearData = attendanceDatabase[currentYear];
-            if (yearData) {
-                for (const [group, dates] of Object.entries(yearData)) {
-                    if (group === 'children' || group === 'teens') {
-                        for (const [date, data] of Object.entries(dates)) {
-                            const docId = `${group}_${date}`;
-                            const docRef = doc(window.db, 'attendance', currentYear.toString(), 'records', docId);
-                            
-                            try {
-                                await updateDoc(docRef, data);
-                            } catch (error) {
-                                // Si el documento no existe, crearlo
-                                await addDoc(collection(window.db, 'attendance', currentYear.toString(), 'records'), {
-                                    ...data,
-                                    id: docId
-                                });
-                            }
+    // Siempre guardar en localStorage primero
+    localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
+    
+    if (!firebaseReady) {
+        console.warn('⚠️ Firebase no disponible, guardado solo en localStorage');
+        return;
+    }
+
+    try {
+        const { doc, setDoc } = window.firebaseUtils;
+        
+        // Guardar cada registro de asistencia
+        const yearData = attendanceDatabase[currentYear];
+        if (yearData) {
+            let savedCount = 0;
+            for (const [group, dates] of Object.entries(yearData)) {
+                if (group === 'children' || group === 'teens') {
+                    for (const [date, data] of Object.entries(dates)) {
+                        const docId = `${group}_${date}`;
+                        const docRef = doc(window.db, 'attendance', currentYear.toString(), 'records', docId);
+                        
+                        try {
+                            // Usar setDoc en lugar de updateDoc para crear o actualizar
+                            await setDoc(docRef, data, { merge: false });
+                            savedCount++;
+                            console.log(`✅ Guardado en Firebase: ${docId}`);
+                        } catch (error) {
+                            console.error(`❌ Error guardando ${docId}:`, error);
                         }
                     }
                 }
             }
             
-            console.log('💾 Asistencias guardadas en Firebase');
-        } catch (error) {
-            console.error('Error guardando en Firebase:', error);
-            // Fallback a localStorage
-            localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
+            console.log(`💾 ${savedCount} asistencias guardadas en Firebase`);
         }
-    } else {
-        // Fallback a localStorage
-        localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
+    } catch (error) {
+        console.error('❌ Error general guardando en Firebase:', error);
     }
 }
 
@@ -801,19 +820,27 @@ async function saveAttendance() {
     attendanceDatabase[currentYear][currentGroup][dateKey] = attendanceRecord;
     
     let savedSuccessfully = false;
+    let firebaseSaved = false;
     
+    // PRIORIDAD: Guardar en Firebase primero
     if (firebaseReady) {
         try {
             const { doc, setDoc } = window.firebaseUtils;
             const docId = `${currentGroup}_${dateKey}`;
             const docRef = doc(window.db, 'attendance', currentYear.toString(), 'records', docId);
-            await setDoc(docRef, attendanceRecord);
             
-            console.log('✅ Asistencia guardada en Firebase');
+            // Usar setDoc con merge para asegurar que se guarde
+            await setDoc(docRef, attendanceRecord, { merge: false });
+            
+            console.log('✅ Asistencia guardada en Firebase con ID:', docId);
+            firebaseSaved = true;
             savedSuccessfully = true;
         } catch (error) {
             console.error('❌ Error guardando asistencia en Firebase:', error);
+            console.error('Detalles del error:', error.message);
         }
+    } else {
+        console.warn('⚠️ Firebase no está disponible, guardando solo en localStorage');
     }
     
     // Siempre guardar en localStorage como respaldo
@@ -833,7 +860,15 @@ async function saveAttendance() {
         const totalCount = attendance.length;
         const percentage = Math.round((presentCount / totalCount) * 100);
         
-        alert(`✅ Asistencia guardada exitosamente!\n\nPresentes: ${presentCount}\nTotal: ${totalCount}\nPorcentaje: ${percentage}%\n\nFecha: ${new Date(dateKey).toLocaleDateString('es-CO')}`);
+        let message = `✅ Asistencia guardada exitosamente!\n\nPresentes: ${presentCount}\nTotal: ${totalCount}\nPorcentaje: ${percentage}%\n\nFecha: ${new Date(dateKey).toLocaleDateString('es-CO')}`;
+        
+        if (firebaseSaved) {
+            message += '\n\n☁️ Sincronizado en la nube';
+        } else {
+            message += '\n\n⚠️ Guardado localmente (sin conexión a Firebase)';
+        }
+        
+        alert(message);
         
         // Ocultar sección de asistencia
         document.getElementById('attendanceSection').style.display = 'none';
