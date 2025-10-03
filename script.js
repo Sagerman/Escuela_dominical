@@ -97,21 +97,16 @@ function initializeLocalData() {
 // NUEVA FUNCIÓN: Migrar datos de localStorage a Firebase
 async function migrateLocalDataToFirebase() {
     if (!firebaseReady) {
-        console.log('⚠️ Firebase no disponible, no se puede migrar');
         return;
     }
 
-    console.log('🔄 Iniciando migración de datos locales a Firebase...');
-
     try {
         const { collection, doc, setDoc, getDocs } = window.firebaseUtils;
-        let migratedCount = 0;
 
-        // Migrar asistencias desde localStorage
+        // Migrar asistencias desde localStorage de forma silenciosa
         const localAttendance = localStorage.getItem('attendance_database');
         if (localAttendance) {
             const localData = JSON.parse(localAttendance);
-            console.log('📦 Datos locales encontrados:', localData);
 
             for (const [year, yearData] of Object.entries(localData)) {
                 if (yearData.children || yearData.teens) {
@@ -123,10 +118,8 @@ async function migrateLocalDataToFirebase() {
                             
                             try {
                                 await setDoc(docRef, attendanceData, { merge: false });
-                                migratedCount++;
-                                console.log(`✅ Migrado: ${docId}`);
                             } catch (error) {
-                                console.error(`❌ Error migrando ${docId}:`, error);
+                                // Silencioso
                             }
                         }
                     }
@@ -139,10 +132,8 @@ async function migrateLocalDataToFirebase() {
                             
                             try {
                                 await setDoc(docRef, attendanceData, { merge: false });
-                                migratedCount++;
-                                console.log(`✅ Migrado: ${docId}`);
                             } catch (error) {
-                                console.error(`❌ Error migrando ${docId}:`, error);
+                                // Silencioso
                             }
                         }
                     }
@@ -150,15 +141,8 @@ async function migrateLocalDataToFirebase() {
             }
         }
 
-        if (migratedCount > 0) {
-            console.log(`🎉 Migración completada: ${migratedCount} registros migrados a Firebase`);
-            alert(`✅ Se migraron ${migratedCount} registros de asistencia a la nube`);
-        } else {
-            console.log('ℹ️ No hay datos locales para migrar');
-        }
-
     } catch (error) {
-        console.error('❌ Error durante la migración:', error);
+        // Silencioso - no mostrar nada al usuario
     }
 }
 
@@ -469,8 +453,8 @@ function showGroupScreen() {
     });
     document.getElementById('groupDate').textContent = dateString;
     
-    // HABILITADO PARA PRUEBAS - Lista siempre disponible
-    const isSunday = true; // Cambiar a: colombiaTime.getDay() === 0 para producción
+    // Habilitar/deshabilitar botón de asistencia solo los domingos
+    const isSunday = colombiaTime.getDay() === 0;
     const takeAttendanceBtn = document.getElementById('takeAttendanceBtn');
     takeAttendanceBtn.disabled = !isSunday;
     
@@ -572,11 +556,9 @@ async function handleAddStudent(e) {
                 const docRef = doc(window.db, 'students', currentGroup, 'list', currentEditingStudent.id);
                 await updateDoc(docRef, updatedStudent);
                 
-                console.log('✅ Estudiante actualizado en Firebase');
                 closeAddStudent();
                 alert(`${name} ha sido actualizado exitosamente`);
             } catch (error) {
-                console.error('Error actualizando estudiante:', error);
                 alert('Error al actualizar el estudiante');
             }
         } else {
@@ -620,13 +602,11 @@ async function handleAddStudent(e) {
         if (firebaseReady) {
             try {
                 const { collection, addDoc } = window.firebaseUtils;
-                const docRef = await addDoc(collection(window.db, 'students', currentGroup, 'list'), newStudent);
+                await addDoc(collection(window.db, 'students', currentGroup, 'list'), newStudent);
                 
-                console.log('✅ Estudiante agregado a Firebase con ID:', docRef.id);
                 closeAddStudent();
                 alert(`${name} ha sido agregado exitosamente`);
             } catch (error) {
-                console.error('Error agregando estudiante:', error);
                 alert('Error al agregar el estudiante');
             }
         } else {
@@ -767,11 +747,9 @@ async function confirmDelete() {
             const docRef = doc(window.db, 'students', currentGroup, 'list', studentToDelete.id);
             await deleteDoc(docRef);
             
-            console.log('✅ Estudiante eliminado de Firebase');
             closeDeleteConfirm();
             alert(`${studentName} ha sido eliminado exitosamente`);
         } catch (error) {
-            console.error('Error eliminando estudiante:', error);
             alert('Error al eliminar el estudiante');
         }
     } else {
@@ -799,12 +777,11 @@ function takeAttendance() {
     const now = new Date();
     const colombiaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
     
-    // DESHABILITADO PARA PRUEBAS - Permitir cualquier día
-    // Descomentar la siguiente línea para producción:
-    // if (colombiaTime.getDay() !== 0) {
-    //     alert('La asistencia solo puede tomarse los domingos');
-    //     return;
-    // }
+    // Verificar que sea domingo
+    if (colombiaTime.getDay() !== 0) {
+        alert('La asistencia solo puede tomarse los domingos');
+        return;
+    }
     
     const attendanceSection = document.getElementById('attendanceSection');
     const attendanceList = document.getElementById('attendanceList');
@@ -849,11 +826,16 @@ function takeAttendance() {
 async function saveAttendance() {
     const checkboxes = document.querySelectorAll('.attendance-checkbox');
     const attendance = [];
+    
+    // Obtener fecha correcta en zona horaria de Colombia
     const now = new Date();
     const colombiaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
-    const dateKey = colombiaTime.toISOString().split('T')[0];
     
-    console.log('💾 Guardando asistencia para:', currentGroup, 'en fecha:', dateKey);
+    // Crear fecha en formato YYYY-MM-DD usando los valores locales de Colombia
+    const year = colombiaTime.getFullYear();
+    const month = String(colombiaTime.getMonth() + 1).padStart(2, '0');
+    const day = String(colombiaTime.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
     
     checkboxes.forEach(checkbox => {
         const studentId = checkbox.dataset.studentId;
@@ -884,8 +866,6 @@ async function saveAttendance() {
         savedAt: colombiaTime.toISOString()
     };
     
-    console.log('📊 Registro de asistencia:', attendanceRecord);
-    
     // Guardar en la base de datos principal
     if (!attendanceDatabase[currentYear]) {
         attendanceDatabase[currentYear] = { children: {}, teens: {} };
@@ -893,27 +873,19 @@ async function saveAttendance() {
     attendanceDatabase[currentYear][currentGroup][dateKey] = attendanceRecord;
     
     let savedSuccessfully = false;
-    let firebaseSaved = false;
     
-    // PRIORIDAD: Guardar en Firebase primero
+    // PRIORIDAD: Guardar en Firebase primero (silencioso)
     if (firebaseReady) {
         try {
             const { doc, setDoc } = window.firebaseUtils;
             const docId = `${currentGroup}_${dateKey}`;
             const docRef = doc(window.db, 'attendance', currentYear.toString(), 'records', docId);
             
-            // Usar setDoc con merge para asegurar que se guarde
             await setDoc(docRef, attendanceRecord, { merge: false });
-            
-            console.log('✅ Asistencia guardada en Firebase con ID:', docId);
-            firebaseSaved = true;
             savedSuccessfully = true;
         } catch (error) {
-            console.error('❌ Error guardando asistencia en Firebase:', error);
-            console.error('Detalles del error:', error.message);
+            // Silencioso
         }
-    } else {
-        console.warn('⚠️ Firebase no está disponible, guardando solo en localStorage');
     }
     
     // Siempre guardar en localStorage como respaldo
@@ -921,27 +893,18 @@ async function saveAttendance() {
         localStorage.setItem('attendance_database', JSON.stringify(attendanceDatabase));
         const attendanceKey = `attendance_${currentGroup}_${dateKey}`;
         localStorage.setItem(attendanceKey, JSON.stringify(attendance));
-        console.log('✅ Asistencia guardada en localStorage');
         savedSuccessfully = true;
     } catch (error) {
-        console.error('❌ Error guardando en localStorage:', error);
+        // Silencioso
     }
     
     if (savedSuccessfully) {
-        // Mostrar resumen
+        // Mostrar solo resumen limpio
         const presentCount = attendance.filter(a => a.present).length;
         const totalCount = attendance.length;
         const percentage = Math.round((presentCount / totalCount) * 100);
         
-        let message = `✅ Asistencia guardada exitosamente!\n\nPresentes: ${presentCount}\nTotal: ${totalCount}\nPorcentaje: ${percentage}%\n\nFecha: ${new Date(dateKey).toLocaleDateString('es-CO')}`;
-        
-        if (firebaseSaved) {
-            message += '\n\n☁️ Sincronizado en la nube';
-        } else {
-            message += '\n\n⚠️ Guardado localmente (sin conexión a Firebase)';
-        }
-        
-        alert(message);
+        alert(`✅ Asistencia guardada exitosamente!\n\nPresentes: ${presentCount}\nTotal: ${totalCount}\nPorcentaje: ${percentage}%`);
         
         // Ocultar sección de asistencia
         document.getElementById('attendanceSection').style.display = 'none';
@@ -1313,12 +1276,17 @@ function generateGroupChart() {
     
     const maxValue = Math.max(childrenTotal, teensTotal);
     
+    // Detectar si es móvil
+    const isMobile = window.innerWidth <= 768;
+    const spacing = isMobile ? 'margin-right: 40px;' : 'margin-right: 30px;';
+    const spacingRight = isMobile ? 'margin-left: 40px;' : 'margin-left: 30px;';
+    
     chartDiv.innerHTML = `
-        <div class="chart-bar" style="height: ${maxValue > 0 ? (childrenTotal / maxValue) * 150 : 0}px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">
+        <div class="chart-bar" style="height: ${maxValue > 0 ? (childrenTotal / maxValue) * 150 : 0}px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); ${spacing}">
             <div class="chart-bar-value">${childrenTotal}</div>
             <div class="chart-bar-label">Niños</div>
         </div>
-        <div class="chart-bar" style="height: ${maxValue > 0 ? (teensTotal / maxValue) * 150 : 0}px; background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);">
+        <div class="chart-bar" style="height: ${maxValue > 0 ? (teensTotal / maxValue) * 150 : 0}px; background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); ${spacingRight}">
             <div class="chart-bar-value">${teensTotal}</div>
             <div class="chart-bar-label">Adolescentes</div>
         </div>
@@ -1446,6 +1414,54 @@ function exportStudentsToExcel() {
         { width: 15 }   // Fecha
     ];
     
+    // Aplicar estilos a las celdas
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[cellAddress]) continue;
+            
+            // Estilo para encabezados (fila 0-2)
+            if (R <= 2) {
+                ws[cellAddress].s = {
+                    font: { bold: true, sz: 14, color: { rgb: "1F4E78" } },
+                    alignment: { horizontal: "center", vertical: "center" }
+                };
+            }
+            // Estilo para títulos de columnas (fila 4)
+            else if (R === 4) {
+                ws[cellAddress].s = {
+                    font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
+                    fill: { fgColor: { rgb: "4472C4" } },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+            }
+            // Estilo para datos (fila 5 en adelante)
+            else if (R > 4) {
+                ws[cellAddress].s = {
+                    alignment: { horizontal: C === 0 ? "center" : "left", vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "D0D0D0" } },
+                        bottom: { style: "thin", color: { rgb: "D0D0D0" } },
+                        left: { style: "thin", color: { rgb: "D0D0D0" } },
+                        right: { style: "thin", color: { rgb: "D0D0D0" } }
+                    },
+                    fill: { fgColor: { rgb: R % 2 === 0 ? "F2F2F2" : "FFFFFF" } }
+                };
+            }
+        }
+    }
+    
+    // Agregar filtros automáticos
+    ws['!autofilter'] = { ref: `A5:H${range.e.r + 1}` };
+    
     XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
     
     // Descargar archivo
@@ -1537,17 +1553,69 @@ function exportAttendanceToExcel() {
             { width: 15 }, // Fecha
             { width: 15 }, // Niños Presentes
             { width: 12 }, // Total Niños
-            { width: 18 }, // Adolescentes Presentes
-            { width: 18 }, // Total Adolescentes
+            { width: 20 }, // Adolescentes Presentes
+            { width: 20 }, // Total Adolescentes
             { width: 15 }  // Total General
         ];
     } else {
         ws['!cols'] = [
-            { width: 15 }, // Fecha
+            { width: 18 }, // Fecha
             { width: 12 }, // Presentes
             { width: 10 }, // Total
             { width: 12 }  // Porcentaje
         ];
+    }
+    
+    // Aplicar estilos a las celdas
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[cellAddress]) continue;
+            
+            // Estilo para encabezados (fila 0-3)
+            if (R <= 3) {
+                ws[cellAddress].s = {
+                    font: { bold: true, sz: 14, color: { rgb: "1F4E78" } },
+                    alignment: { horizontal: "center", vertical: "center" }
+                };
+            }
+            // Estilo para títulos de columnas (fila 5)
+            else if (R === 5) {
+                ws[cellAddress].s = {
+                    font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
+                    fill: { fgColor: { rgb: "4472C4" } },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+            }
+            // Estilo para datos (fila 6 en adelante)
+            else if (R > 5) {
+                ws[cellAddress].s = {
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "D0D0D0" } },
+                        bottom: { style: "thin", color: { rgb: "D0D0D0" } },
+                        left: { style: "thin", color: { rgb: "D0D0D0" } },
+                        right: { style: "thin", color: { rgb: "D0D0D0" } }
+                    },
+                    fill: { fgColor: { rgb: R % 2 === 0 ? "F2F2F2" : "FFFFFF" } }
+                };
+            }
+        }
+    }
+    
+    // Agregar filtros automáticos
+    if (currentUser.role === 'pastor') {
+        ws['!autofilter'] = { ref: `A6:F${range.e.r + 1}` };
+    } else {
+        ws['!autofilter'] = { ref: `A6:D${range.e.r + 1}` };
     }
     
     XLSX.utils.book_append_sheet(wb, ws, 'Asistencias');
